@@ -36,7 +36,7 @@ if "logged_in_user" not in st.session_state:
 # ตรวจสอบสิทธิ์ปัจจุบัน
 current_user = st.session_state.logged_in_user
 user_role = st.session_state.users[current_user]["role"] if current_user else "นักศึกษาทั่วไป"
-is_authorized = user_role in ["", "เหรัญญิก"]
+is_authorized = user_role in ["ผู้ดูแล","หัวหน้าห้อง", "เหรัญญิก"]
 
 # ==========================================
 # 🔐 หน้าต่างล็อกอิน (ปรับปรุงดีไซน์ Sidebar ด้านซ้าย)
@@ -82,7 +82,7 @@ with st.sidebar:
                 new_admin_user = st.text_input("ตั้ง Username ใหม่")
                 new_admin_name = st.text_input("ชื่อ-นามสกุล ผู้ดูแล")
                 new_admin_pass = st.text_input("ตั้ง Password", type="password")
-                new_admin_role = st.selectbox("เลือกตำแหน่ง", [ "ผู้ดูแล", "เหรัญญิก"])
+                new_admin_role = st.selectbox("เลือกตำแหน่ง", [ "ผู้ดูแล", "หัวหน้าห้อง", "เหรัญญิก"])
                 
                 if st.button("ยืนยันสร้างบัญชีผู้ดูแล", use_container_width=True):
                     if new_admin_user and new_admin_name and new_admin_pass:
