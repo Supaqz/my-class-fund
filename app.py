@@ -12,7 +12,7 @@ SECRET_PASSWORD = "admin123"
 # ==========================================
 if "users" not in st.session_state:
     st.session_state.users = {
-        "admin": {"password": "topsecret", "name": "ผู้ควบคุมใหญ่สุด", "role": "ผู้ควบคุมใหญ่สุด"},
+        "admin": {"password": "topsecret", "name": "ผู้ดูแล", "role": "ผู้ดูแล"},
         "money1": {"password": "1234", "name": "เหรัญญิกหลัก", "role": "เหรัญญิก"},
     }
 
@@ -38,7 +38,7 @@ if "logged_in_user" not in st.session_state:
 # ตรวจสอบสิทธิ์ปัจจุบัน
 current_user = st.session_state.logged_in_user
 user_role = st.session_state.users[current_user]["role"] if current_user else "นักศึกษาทั่วไป"
-is_authorized = user_role in ["ผู้ควบคุมใหญ่สุด", "เหรัญญิก"]
+is_authorized = user_role in ["ผู้ดูแล", "เหรัญญิก"]
 
 # ==========================================
 # 🔐 หน้าต่างล็อกอิน (Sidebar ด้านซ้าย)
@@ -83,7 +83,7 @@ with st.sidebar:
                 new_admin_user = st.text_input("ตั้ง Username ใหม่")
                 new_admin_name = st.text_input("ชื่อ-นามสกุล ผู้ดูแล")
                 new_admin_pass = st.text_input("ตั้ง Password", type="password")
-                new_admin_role = st.selectbox("เลือกตำแหน่ง", ["เหรัญญิก", "ผู้ควบคุมใหญ่สุด"])
+                new_admin_role = st.selectbox("เลือกตำแหน่ง", ["เหรัญญิก", "ผู้ดูแล"])
                 
                 c_btn1, c_btn2 = st.columns(2)
                 with c_btn1:
