@@ -1,118 +1,104 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import json
+from streamlit_gsheets import GSheetsConnection
 
 # ตั้งค่าหน้าเว็บหลัก
-st.set_page_config(page_title="ระบบออมเงิน FN A&B 68", page_icon="💰", layout="wide")
+st.set_page_config(page_title="ระบบออมเงิน FN A&B 68 Auto", page_icon="💰", layout="wide")
 
-# 🔗 ลิงก์ปลายทางฐานข้อมูลตัวใหม่ของคุณ
-WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwN68SHFe5WS6mX5u8RmiAXDt2-_24OuawdUV9FQWwbAyAok4kBzW9dgzeiEgHw9gpY/exec"
-GOOGLE_SHEET_LINK = "https://docs.google.com/spreadsheets/d/1BpxPfO-hTJNhd9wCBi1_GFEUulp2PQ-QkxCwSUYA3P8/edit?gid=0#gid=0"
-
-# ==========================================
-# 🗃️ ระบบฐานข้อมูลในตัวแอป (Session State)
-# ==========================================
-if "students" not in st.session_state: st.session_state.students = []
-if "deposits" not in st.session_state: st.session_state.deposits = []
-if "withdrawals" not in st.session_state: st.session_state.withdrawals = []
+# ลิงก์ Google Sheet ของคุณ
+GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1BpxPfO-hTJNhd9wCBi1_GFEUulp2PQ-QkxCwSUYA3P8/edit?gid=0#gid=0"
 
 # ==========================================
-# 🪄 ส่วนจำลองการทำงาน JSONP & SweetAlert
+# 🔌 เชื่อมต่อ Google Sheets ตรงผ่าน Connector
 # ==========================================
-def run_jsonp_sweetalert(action_type, payload_dict):
-    """ฟังก์ชันยิงคำสั่ง JSONP ไปยัง Google Apps Script พร้อมเรียกใช้ SweetAlert2"""
-    payload_json = json.dumps(payload_dict, ensure_ascii=False)
-    js_code = f"""
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script>
-    function executeJSONP() {{
-        Swal.fire({{
-            title: 'กำลังเชื่อมต่อกับ Google Sheet...',
-            text: 'กรุณารอการบันทึกข้อมูลสักครู่',
-            allowOutsideClick: false,
-            didOpen: () => {{ Swal.showLoading(); }}
-        }});
-        const script = document.createElement('script');
-        const encodedData = encodeURIComponent('{payload_json}');
-        script.src = "{WEB_APP_URL}?action=" + "{action_type}" + "&data=" + encodedData + "&callback=handleResponse";
-        document.body.appendChild(script);
-    }}
-    function handleResponse(response) {{
-        if(response.status === "success") {{
-            Swal.fire({{ icon: 'success', title: 'บันทึกสำเร็จ!', text: response.message, confirmButtonColor: '#3085d6' }});
-        }} else {{
-            Swal.fire({{ icon: 'error', title: 'เกิดข้อผิดพลาด', text: response.message }});
-        }}
-    }}
-    executeJSONP();
-    </script>
-    """
-    st.components.v1.html(js_code, height=0)
+try:
+    conn = st.connection("gsheets", type=GSheetsConnection)
+except Exception as e:
+    st.error("🔌 ยังไม่ได้ตั้งค่า Secrets บน Streamlit Cloud กรุณาตรวจสอบช่อง Secrets ด้านหลังระบบ")
+
+# ฟังก์ชันอัจฉริยะ: ตรวจสอบและสร้างหน้าแท็บให้เองอัตโนมัติหากไม่มีในคลาวด์
+def get_or_create_worksheet(worksheet_name, default_headers):
+    try:
+        # ทดลองอ่านข้อมูลดูว่ามีแท็บนี้อยู่แล้วไหม
+        df = conn.read(spreadsheet=GOOGLE_SHEET_URL, worksheet=worksheet_name)
+        # ถ้ามีแท็บแต่ดันเป็นชีทโล่ง ๆ ไม่มีหัวตาราง ให้ใส่หัวตารางให้
+        if df.empty or len(df.columns) == 0:
+            df_empty = pd.DataFrame(columns=default_headers)
+            conn.update(spreadsheet=GOOGLE_SHEET_URL, worksheet=worksheet_name, data=df_empty)
+            return df_empty
+        return df
+    except Exception:
+        # 🚨 ถ้าไม่เจอหน้าแท็บนี้ ระบบจะทำการสร้างแท็บใหม่และพิมพ์หัวข้อคอลัมน์ให้ทันที!
+        st.toast(f"🛠️ ระบบกำลังสร้างหน้าแท็บ '{worksheet_name}' ให้ใน Google Sheet...", icon="⚙️")
+        df_new = pd.DataFrame(columns=default_headers)
+        conn.update(spreadsheet=GOOGLE_SHEET_URL, worksheet=worksheet_name, data=df_new)
+        return df_new
+
+# ฟังก์ชันบันทึกข้อมูลกลับลงคลาวด์ชีท
+def save_data(df, worksheet_name):
+    conn.update(spreadsheet=GOOGLE_SHEET_URL, worksheet=worksheet_name, data=df)
+    st.toast(f"💾 บันทึกและซิงค์ข้อมูลลงแท็บ {worksheet_name} เรียบร้อยแล้ว!", icon="✅")
+
+# กำหนดหัวข้อคอลัมน์มาตรฐานของระบบ
+headers_stu = ["รหัสนักศึกษา", "ชื่อ-นามสกุล", "ชั้นเรียน"]
+headers_dep = ["ID", "วันที่ฝาก", "รหัสนักศึกษา", "ชื่อ-นามสกุล", "จำนวนเงินที่ฝาก", "หมายเหตุ"]
+headers_wd  = ["ID", "วันที่ถอน", "รหัสนักศึกษา", "ชื่อ-นามสกุล", "จำนวนเงินที่ถอน", "หมายเหตุ"]
+
+# โหลดข้อมูลจริงจากคลาวด์ (ถ้าไม่มี ระบบจะสร้างชีทใหม่ให้เองตรงนี้เลย)
+df_cloud_stu = get_or_create_worksheet("Students", headers_stu)
+df_cloud_dep = get_or_create_worksheet("Deposits", headers_dep)
+df_cloud_wd  = get_or_create_worksheet("Withdrawals", headers_wd)
+
+# ย้ายข้อมูลเข้าสู่หน่วยความจำหน้าเว็บเพื่อประมวลผลด่วน
+if "students" not in st.session_state:
+    st.session_state.students = df_cloud_stu.to_dict(orient="records")
+
+if "deposits" not in st.session_state:
+    st.session_state.deposits = df_cloud_dep.to_dict(orient="records")
+
+if "withdrawals" not in st.session_state:
+    st.session_state.withdrawals = df_cloud_wd.to_dict(orient="records")
 
 # ==========================================
-# 🎨 การจัดแสดงสไตล์ปุ่มและการลิงก์เว็บภายนอก (แก้ไขเพิ่ม unique_key)
+# 🎨 ส่วนจัดหน้าจอแอปพลิเคชัน
 # ==========================================
-def render_common_buttons(sheet_df, info_text, unique_key):
-    """ปุ่มเรียกดูข้อมูล และปุ่มแสดงไฟล์ Google Sheet ประจำทุกหน้าต่าง พร้อมแก้บั๊กปุ่มซ้ำ"""
-    st.markdown("---")
-    col_b1, col_b2 = st.columns(2)
-    with col_b1:
-        if st.button("📊 เรียกดูข้อมูลจาก Google Sheet", use_container_width=True, key=f"btn_view_{unique_key}"):
-            st.write(f"📝 **ข้อมูลอัปเดตปัจจุบัน ({info_text}):**")
-            if not sheet_df.empty: st.dataframe(sheet_df, use_container_width=True)
-            else: st.info("ไม่พบรายการที่ถูกบันทึกในฐานข้อมูล")
-    with col_b2:
-        st.link_button("🌐 แสดงข้อมูล Google Sheet", GOOGLE_SHEET_LINK, use_container_width=True, key=f"btn_link_{unique_key}")
-
-# หัวข้อระบบขนาดใหญ่
-st.title("💰 ระบบบันทึกการเงินและข้อมูลนักศึกษา สาขาการเงิน FN A&B 68")
+st.title("💰 ระบบคลังเงินออม (Auto-Create Sheets) - FN A&B 68")
 st.markdown("---")
 
-# แบ่งหน้าต่างแอปด้วย 4 แท็บเมนูหลัก
 tab1, tab2, tab3, tab4 = st.tabs(["💵 ฝากเงิน", "💸 ถอนเงิน", "📊 สรุปภาพรวม", "👤 ฟอร์มกรอกข้อมูลนักศึกษา"])
+student_list = [f"{s['รหัสนักศึกษา']} - {s['ชื่อ-นามสกุล']}" for s in st.session_state.students]
 
-# ดึงข้อมูลนักศึกษาปัจจุบันมาทำตัวเลือก Dropdown
-student_list = [f"{s['id']} - {s['name']}" for s in st.session_state.students]
-
-# ==========================================
-# หน้าต่างที่ 1: ฝากเงิน
-# ==========================================
+# --- หน้าต่างที่ 1: ฝากเงิน ---
 with tab1:
     st.header("📋 แบบฟอร์มบันทึกเงินฝากนักศึกษา")
     if not student_list:
-        st.warning("⚠️ โปรดไปที่หน้าต่างที่ 4 เพื่อเพิ่มรายชื่อนักศึกษาก่อนใช้งานฟอร์มฝากเงิน")
+        st.warning("⚠️ โปรดไปที่หน้าต่างที่ 4 เพื่อเพิ่มรายชื่อนักศึกษาก่อน")
     else:
         with st.form("deposit_form"):
             dep_date = st.date_input("วันที่ฝากเงิน", datetime.now())
             dep_amount = st.number_input("จำนวนเงินที่ฝาก", min_value=0.0, step=50.0)
             dep_user = st.selectbox("ผู้ฝากเงิน", student_list)
-            dep_note = st.text_input("หมายเหตุเพิ่มเติม (ถ้ามี)", placeholder="ระบุเหตุผลการฝาก...")
+            dep_note = st.text_input("หมายเหตุเพิ่มเติม (ถ้ามี)")
             
-            submit_dep = st.form_submit_button("💾 บันทึกข้อมูลการฝากเงินใน Google Sheet", use_container_width=True)
-            if submit_dep:
-                if dep_amount <= 0:
-                    st.error("กรุณาระบุจำนวนเงินที่มากกว่า 0 บาท")
-                else:
+            if st.form_submit_button("💾 บันทึกข้อมูลการฝากเงินใน Google Sheet", use_container_width=True):
+                if dep_amount > 0:
                     stu_id, stu_name = dep_user.split(" - ")[0], dep_user.split(" - ")[1]
-                    new_dep = {
-                        "id": len(st.session_state.deposits) + 1, "date": dep_date.strftime("%Y-%m-%d"),
-                        "student_id": stu_id, "name": stu_name, "amount": dep_amount, "note": dep_note
-                    }
-                    st.session_state.deposits.append(new_dep)
+                    st.session_state.deposits.append({
+                        "ID": len(st.session_state.deposits) + 1, "วันที่ฝาก": dep_date.strftime("%Y-%m-%d"),
+                        "รหัสนักศึกษา": stu_id, "ชื่อ-นามสกุล": stu_name, "จำนวนเงินที่ฝาก": dep_amount, "หมายเหตุ": dep_note
+                    })
+                    save_data(pd.DataFrame(st.session_state.deposits), "Deposits")
                     st.success("บันทึกข้อมูลการฝากเงินใน Google Sheet เรียบร้อย")
-                    run_jsonp_sweetalert("addDeposit", new_dep)
+                else: st.error("กรุณากรอกจำนวนเงิน")
 
-        df_dep_view = pd.DataFrame(st.session_state.deposits) if st.session_state.deposits else pd.DataFrame()
-        render_common_buttons(df_dep_view, "ประวัติการฝากเงิน", "dep")
+    st.link_button("🌐 แสดงข้อมูล Google Sheet", GOOGLE_SHEET_URL, use_container_width=True)
 
-# ==========================================
-# หน้าต่างที่ 2: ถอนเงิน
-# ==========================================
+# --- หน้าต่างที่ 2: ถอนเงิน ---
 with tab2:
     st.header("📋 แบบฟอร์มบันทึกการถอนเงินนักศึกษา")
     if not student_list:
-        st.warning("⚠️ โปรดไปที่หน้าต่างที่ 4 เพื่อเพิ่มรายชื่อนักศึกษาก่อนใช้งานฟอร์มถอนเงิน")
+        st.warning("⚠️ โปรดไปที่หน้าต่างที่ 4 เพื่อเพิ่มรายชื่อนักศึกษาก่อน")
     else:
         with st.form("withdraw_form"):
             wd_date = st.date_input("วันที่ถอนเงิน", datetime.now())
@@ -120,30 +106,27 @@ with tab2:
             wd_user = st.selectbox("ผู้ถอนเงิน", student_list)
             wd_note = st.text_input("หมายเหตุเพิ่มเติม (ถ้ามี)")
             
-            submit_wd = st.form_submit_button("💸 บันทึกข้อมูลการถอนเงินใน Google Sheet", use_container_width=True)
-            if submit_wd:
-                if wd_amount <= 0:
-                    st.error("กรุณาระบุจำนวนเงินที่มากกว่า 0 บาท")
-                else:
+            if st.form_submit_button("💸 บันทึกข้อมูลการถอนเงินใน Google Sheet", use_container_width=True):
+                if wd_amount > 0:
                     stu_id, stu_name = wd_user.split(" - ")[0], wd_user.split(" - ")[1]
-                    new_wd = {
-                        "id": len(st.session_state.withdrawals) + 1, "date": wd_date.strftime("%Y-%m-%d"),
-                        "student_id": stu_id, "name": stu_name, "amount": wd_amount, "note": wd_note
-                    }
-                    st.session_state.withdrawals.append(new_wd)
+                    st.session_state.withdrawals.append({
+                        "ID": len(st.session_state.withdrawals) + 1, "วันที่ถอน": wd_date.strftime("%Y-%m-%d"),
+                        "รหัสนักศึกษา": stu_id, "ชื่อ-นามสกุล": stu_name, "จำนวนเงินที่ถอน": wd_amount, "หมายเหตุ": wd_note
+                    })
+                    save_data(pd.DataFrame(st.session_state.withdrawals), "Withdrawals")
                     st.success("บันทึกข้อมูลการฝากเงินใน Google Sheet เรียบร้อย")
-                    run_jsonp_sweetalert("addWithdrawal", new_wd)
+                else: st.error("กรุณากรอกจำนวนเงิน")
 
-        df_wd_view = pd.DataFrame(st.session_state.withdrawals) if st.session_state.withdrawals else pd.DataFrame()
-        render_common_buttons(df_wd_view, "ประวัติการถอนเงิน", "wd")
+    st.link_button("🌐 แสดงข้อมูล Google Sheet", GOOGLE_SHEET_URL, use_container_width=True)
 
-# ==========================================
-# หน้าต่างที่ 3: สรุปภาพรวม
-# ==========================================
+# --- หน้าต่างที่ 3: สรุปภาพรวม ---
 with tab3:
     st.header("📊 สรุปภาพรวมระบบบัญชีคลังห้อง")
-    total_room_dep = sum(d["amount"] for d in st.session_state.deposits)
-    total_room_wd = sum(w["amount"] for w in st.session_state.withdrawals)
+    df_dep = pd.DataFrame(st.session_state.deposits)
+    df_wd = pd.DataFrame(st.session_state.withdrawals)
+    
+    total_room_dep = df_dep["จำนวนเงินที่ฝาก"].sum() if not df_dep.empty else 0.0
+    total_room_wd = df_wd["จำนวนเงินที่ถอน"].sum() if not df_wd.empty else 0.0
     room_balance = total_room_dep - total_room_wd
     
     st.subheader("🏫 1. สรุปยอดรวมของทั้งห้อง")
@@ -155,23 +138,21 @@ with tab3:
     st.markdown("---")
     st.subheader("👤 2. ยอดคงเหลือของนักศึกษาแต่ละคน")
     if not st.session_state.students:
-        st.info("ยังไม่มีข้อมูลนักศึกษาในระบบสำหรับการสรุปยอด")
+        st.info("ยังไม่มีข้อมูลนักศึกษาในระบบ")
     else:
         summary_records = []
         for student in st.session_state.students:
-            s_id = student["id"]
-            s_dep = sum(d["amount"] for d in st.session_state.deposits if d["student_id"] == s_id)
-            s_wd = sum(w["amount"] for w in st.session_state.withdrawals if w["student_id"] == s_id)
+            s_id = student["รหัสนักศึกษา"]
+            s_dep = df_dep[df_dep["รหัสนักศึกษา"] == s_id]["จำนวนเงินที่ฝาก"].sum() if not df_dep.empty else 0.0
+            s_wd = df_wd[df_wd["รหัสนักศึกษา"] == s_id]["จำนวนเงินที่ถอน"].sum() if not df_wd.empty else 0.0
             s_bal = s_dep - s_wd
             summary_records.append({
-                "รหัสนักศึกษา": s_id, "ชื่อ - นามสกุล": student["name"], "ชั้นเรียน": student["class"],
+                "รหัสนักศึกษา": s_id, "ชื่อ - นามสกุล": student["ชื่อ-นามสกุล"], "ชั้นเรียน": student["ชั้นเรียน"],
                 "ยอดรวมเงินฝาก (บาท)": f"{s_dep:,.2f}", "ยอดรวมการถอน (บาท)": f"{s_wd:,.2f}", "ยอดเงินคงเหลือคงคลัง (บาท)": f"{s_bal:,.2f}"
             })
         st.dataframe(pd.DataFrame(summary_records), use_container_width=True)
 
-# ==========================================
-# หน้าต่างที่ 4: ฟอร์มกรอกข้อมูลนักศึกษา
-# ==========================================
+# --- หน้าต่างที่ 4: ฟอร์มกรอกข้อมูลนักศึกษา ---
 with tab4:
     st.header("👤 บันทึกข้อมูลนักศึกษา")
     col_f1, col_f2, col_f3 = st.columns(3)
@@ -179,46 +160,30 @@ with tab4:
     with col_f2: s_name_input = st.text_input("ชื่อ–นามสกุล")
     with col_f3: s_class_input = st.selectbox("ชั้นเรียน", ["FN A 68", "FN B 68"])
         
-    st.markdown("##### ⚙️ ปุ่มควบคุมจัดการฐานข้อมูลนักศึกษาชั่วคราว")
     c_btn1, c_btn2, c_btn3 = st.columns(3)
-    
     with c_btn1:
         if st.button("➕ ปุ่มเพิ่มข้อมูลนักศึกษา", use_container_width=True):
             if s_id_input and s_name_input:
-                if any(s["id"] == s_id_input for s in st.session_state.students): st.error("รหัสนักศึกษานี้มีอยู่แล้วในระบบ")
+                if any(s["รหัสนักศึกษา"] == s_id_input for s in st.session_state.students):
+                    st.error("รหัสนักศึกษานี้มีอยู่ในระบบแล้ว")
                 else:
-                    st.session_state.students.append({"id": s_id_input, "name": s_name_input, "class": s_class_input})
+                    st.session_state.students.append({"รหัสนักศึกษา": s_id_input, "ชื่อ-นามสกุล": s_name_input, "ชั้นเรียน": s_class_input})
                     st.success("เพิ่มข้อมูลเรียบร้อยแล้ว")
-            else: st.error("กรุณากรอกรหัสและชื่อนักศึกษา")
-            
+            else: st.error("กรุณากรอกข้อมูลให้ครบถ้วน")
     with c_btn2:
         if st.button("✏️ ปุ่มแก้ไขข้อมูล", use_container_width=True):
-            if s_id_input:
-                found = False
-                for s in st.session_state.students:
-                    if s["id"] == s_id_input:
-                        if s_name_input: s["name"] = s_name_input
-                        s["class"] = s_class_input
-                        found = True
-                if found: st.success("แก้ไขข้อมูลสำเร็จ")
-                else: st.error("ไม่พบรหัสนักศึกษาที่จะทำการแก้ไข")
-            else: st.error("กรุณาระบุรหัสนักศึกษาที่ต้องการแก้ไขข้อมูล")
-            
+            for s in st.session_state.students:
+                if s["รหัสนักศึกษา"] == s_id_input:
+                    if s_name_input: s["ชื่อ-นามสกุล"] = s_name_input
+                    s["ชั้นเรียน"] = s_class_input
+            st.success("แก้ไขข้อมูลสำเร็จ")
     with c_btn3:
         if st.button("🗑️ ปุ่มลบข้อมูลนักศึกษา", type="primary", use_container_width=True):
-            if s_id_input:
-                initial_count = len(st.session_state.students)
-                st.session_state.students = [s for s in st.session_state.students if s["id"] != s_id_input]
-                if len(st.session_state.students) < initial_count: st.success("ลบข้อมูลสำเร็จ")
-                else: st.error("ไม่พบรหัสนักศึกษานี้ในระบบ")
-            else: st.error("กรุณาระบุรหัสนักศึกษาที่ต้องการลบ")
+            st.session_state.students = [s for s in st.session_state.students if s["รหัสนักศึกษา"] != s_id_input]
+            st.success("ลบข้อมูลสำเร็จ")
             
     st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("🌐 บันทึกข้อมูลนักศึกษาใน Google Sheet", use_container_width=True, type="secondary"):
-        if st.session_state.students:
-            st.success("บันทึกข้อมูลนักศึกษาใน Google Sheet เรียบร้อย")
-            run_jsonp_sweetalert("syncStudents", st.session_state.students)
-        else: st.error("ไม่มีข้อมูลนักศึกษาสำหรับซิงค์คลาวด์")
-            
-    df_stu_view = pd.DataFrame(st.session_state.students) if st.session_state.students else pd.DataFrame()
-    render_common_buttons(df_stu_view, "ทำเนียบรายชื่อนักศึกษา", "stu")
+    if st.button("🌐 บันทึกข้อมูลนักศึกษาใน Google Sheet", use_container_width=True):
+        save_data(pd.DataFrame(st.session_state.students), "Students")
+        st.success("บันทึกข้อมูลนักศึกษาใน Google Sheet เรียบร้อย")
+        st.rerun()
