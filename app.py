@@ -74,7 +74,7 @@ with st.sidebar:
             st.rerun()
 
 # ==========================================
-# 🎨 หน้าจอหลัก: กระดานเช็กเงินกองกลางห้องเรียน
+# 🎨 หน้าจอหลัก: กระดานเช็กเงินห้องเรียน
 # ==========================================
 st.title("📝 กระดานเช็กเงินกองกลางนักศึกษา")
 st.markdown("---")
@@ -86,13 +86,14 @@ else:
     st.warning("⚠️ กรุณาไปที่แท็บ '⚙️ ตั้งค่าระบบ' เพื่อสร้างห้องเรียนก่อนครับ")
     selected_room = None
 
-if selected_room:
-    tab1, tab2, tab3 = st.tabs(["📝 ใบเช็กเงินกองกลางห้อง", "💸 บันทึกรายจ่าย & ประวัติ", "⚙️ ตั้งค่าระบบ (เพิ่มห้อง/เพื่อน)"])
+# สร้างแท็บถาวรเพื่อให้หน้าจอไม่พังและสลับไปมาได้เสถียร
+tab1, tab2, tab3 = st.tabs(["📝 ใบเช็กเงินกองกลางห้อง", "💸 บันทึกรายจ่าย & ประวัติ", "⚙️ ตั้งค่าระบบ (เพิ่มห้อง/เพื่อน)"])
 
-    # ==========================================
-    # แท็บที่ 1: หน้าใบเช็กเงิน + ระบบค้นหาเรียลไทม์
-    # ==========================================
-    with tab1:
+# ==========================================
+# แท็บที่ 1: หน้าใบเช็กเงิน + ระบบค้นหาเรียลไทม์
+# ==========================================
+with tab1:
+    if selected_room:
         st.header(f"📋 ใบรายชื่อเช็กเงินกองกลางประจำห้อง {selected_room}")
         
         # คำนวณเงินห้องปัจจุบัน
@@ -106,14 +107,14 @@ if selected_room:
         room_students = [s for s in st.session_state.students if s["class"] == selected_room]
         
         if room_students:
-            # 🔍 ช่องค้นหาอัจฉริยะ (พิมพ์ปุ๊บ ค้นหาปั๊บ)
+            # ช่องค้นหาอัจฉริยะ
             st.markdown("### 🔍 ค้นหารายชื่อนักศึกษาในใบเช็กชื่อนี้")
             search_query = st.text_input("ระบุ รหัสนักศึกษา หรือ ชื่อ-นามสกุล ที่ต้องการค้นหา:", placeholder="พิมพ์ค้นหาที่นี่...")
             st.markdown("---")
             
             st.markdown("##### 👥 ตารางใบเช็กเงิน")
             
-            # หัวตารางจำลองให้ดูสวยงาม
+            # หัวตาราง
             h1, h2, h3, h4 = st.columns([2, 3, 2, 3])
             h1.markdown("**รหัสนักศึกษา**")
             h2.markdown("**ชื่อ - นามสกุล**")
@@ -121,10 +122,8 @@ if selected_room:
             h4.markdown("**การกระทำ (เฉพาะเหรัญญิก)**")
             st.markdown("<hr style='margin:5px 0 15px 0;'>", unsafe_allow_html=True)
             
-            # วาดแถวรายชื่อทีละแถว และทำการกรองตามคำค้นหา
             found_any = False
             for idx, student in enumerate(room_students):
-                # ตรวจสอบคำค้นหา (ถ้าพิมพ์มาแล้วไม่ตรง ให้ข้ามแถวนี้ไป)
                 if search_query:
                     if (search_query.lower() not in student["name"].lower()) and (search_query not in student["id"]):
                         continue
@@ -134,13 +133,11 @@ if selected_room:
                 c1.write(student["id"])
                 c2.write(student["name"])
                 
-                # แสดงสัญลักษณ์สีตามสถานะเงิน
                 if student["status"] == "✅ จ่ายแล้ว":
                     c3.markdown("<span style='color:green; font-weight:bold;'>✅ จ่ายแล้ว</span>", unsafe_allow_html=True)
                 else:
                     c3.markdown("<span style='color:red; font-weight:bold;'>❌ ยังไม่จ่าย</span>", unsafe_allow_html=True)
                 
-                # ปุ่มกดเช็กสถานะเงิน (เหมือนช่องติ๊กใบเช็กชื่อ)
                 if is_authorized:
                     if student["status"] == "❌ ยังไม่จ่าย":
                         if c4.button(f"🔄 เช็กว่าจ่ายเงินแล้ว", key=f"pay_{idx}", use_container_width=True):
@@ -173,11 +170,14 @@ if selected_room:
                 st.info("🔍 ไม่พบรายชื่อนักศึกษาที่ตรงกับคำค้นหานี้")
         else:
             st.info(f"ห้อง {selected_room} นี้ยังไม่มีรายชื่อเพื่อนนักศึกษา กรุณาไปเพิ่มรายชื่อที่แท็บตั้งค่าระบบ")
+    else:
+        st.warning("⚠️ กรุณาสร้างห้องเรียนในระบบก่อน เพื่อเข้าดูใบเช็กเงินครับ")
 
-    # ==========================================
-    # แท็บที่ 2: บันทึกรายจ่าย & ดูประวัติบัญชี
-    # ==========================================
-    with tab2:
+# ==========================================
+# แท็บที่ 2: บันทึกรายจ่าย & ดูประวัติบัญชี
+# ==========================================
+with tab2:
+    if selected_room:
         st.header(f"💸 บัญชีรายรับ-รายจ่ายของห้อง {selected_room}")
         
         if is_authorized:
@@ -195,28 +195,34 @@ if selected_room:
                     
         st.markdown("---")
         st.subheader("📜 ประวัติบันทึกธุรกรรมทั้งหมดทางการเงิน")
+        df_t = pd.DataFrame(st.session_state.transactions)
+        df_t_room = df_t[df_t["class"] == selected_room] if not df_t.empty else pd.DataFrame()
         if not df_t_room.empty:
             st.dataframe(df_t_room[["time", "type", "student_id", "detail", "amount"]], use_container_width=True)
         else:
             st.info("ยังไม่มีรายการเดินบัญชีเงินกองกลางในห้องนี้")
+    else:
+        st.warning("⚠️ กรุณาสร้างห้องเรียนในระบบก่อน เพื่อเข้าดูบัญชีรายรับ-รายจ่ายครับ")
 
-    # ==========================================
-    # แท็บที่ 3: ตั้งค่าโครงสร้างข้อมูล (เพิ่มห้อง/เพิ่มเพื่อน)
-    # ==========================================
-    with tab3:
-        if is_authorized:
-            st.header("⚙️ แผงจัดการจัดการระบบนักศึกษา")
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown("### 🏫 ระบบห้องเรียน")
-                new_room = st.text_input("เพิ่มชื่อห้องเรียนใหม่:")
-                if st.button("🏫 ยืนยันสร้างห้องเรียนใหม่", use_container_width=True):
-                    if new_room and new_room not in st.session_state.classes:
-                        st.session_state.classes.append(new_room)
-                        st.toast(f"สร้างห้อง {new_room} สำเร็จ", icon="🏫")
-                        st.rerun()
-                st.markdown("---")
+# ==========================================
+# แท็บที่ 3: ตั้งค่าโครงสร้างข้อมูล (เปิดให้โชว์ถาวร)
+# ==========================================
+with tab3:
+    if is_authorized:
+        st.header("⚙️ แผงจัดการจัดการระบบนักศึกษา")
+        col1, col2 = st.columns(2)
+        
+        # ฝั่งซ้าย: ระบบห้องเรียน
+        with col1:
+            st.markdown("### 🏫 ระบบห้องเรียน")
+            new_room = st.text_input("เพิ่มชื่อห้องเรียนใหม่:")
+            if st.button("🏫 ยืนยันสร้างห้องเรียนใหม่", use_container_width=True):
+                if new_room and new_room not in st.session_state.classes:
+                    st.session_state.classes.append(new_room)
+                    st.toast(f"สร้างห้อง {new_room} สำเร็จ", icon="🏫")
+                    st.rerun()
+            st.markdown("---")
+            if st.session_state.classes:
                 del_room = st.selectbox("เลือกห้องเรียนที่ต้องการลบออกจากระบบ:", st.session_state.classes)
                 if st.button("🗑️ ลบห้องเรียนนี้เด็ดขาด", type="primary", use_container_width=True):
                     st.session_state.classes.remove(del_room)
@@ -224,10 +230,13 @@ if selected_room:
                     st.toast(f"ลบห้อง {del_room} สำเร็จ", icon="🗑️")
                     st.rerun()
 
-            with col2:
-                st.markdown("### 👤 เพิ่มนักศึกษาเข้าใบเช็กชื่อ")
-                stu_id = st.text_input("กรอกรหัสนักศึกษา:")
-                stu_name = st.text_input("กรอกชื่อ - นามสกุล:")
+        # ฝั่งขวา: เพิ่มนักศึกษา (แก้ไขเงื่อนไขล็อกให้แสดงผลค้างไว้ถาวรแล้ว)
+        with col2:
+            st.markdown("### 👤 เพิ่มนักศึกษาเข้าใบเช็กชื่อ")
+            stu_id = st.text_input("กรอกรหัสนักศึกษา:")
+            stu_name = st.text_input("กรอกชื่อ - นามสกุล:")
+            
+            if st.session_state.classes:
                 stu_class = st.selectbox("เลือกห้องเรียนปลายทาง (Dropdown):", st.session_state.classes, key="add_stu_key")
                 
                 if st.button("👤 เพิ่มรายชื่อเพื่อนเข้าตาราง", use_container_width=True):
@@ -241,5 +250,7 @@ if selected_room:
                             st.toast(f"เพิ่มชื่อ {stu_name} เข้าใบเช็กเงินแล้ว!", icon="👤")
                             st.rerun()
                     else: st.error("กรุณากรอกข้อมูลให้ครบถ้วน")
-        else:
-            st.warning("🔒 เฉพาะแอดมินหรือเหรัญญิกเท่านั้นที่ได้รับสิทธิ์ให้ปรับปรุงโครงสร้างรายชื่อนักศึกษา")
+            else:
+                st.info("ℹ️ ระบบยังไม่มีห้องเรียน กรุณากรอกเพิ่มชื่อห้องเรียนที่ฝั่งซ้ายมือก่อน จึงจะเปิดหน้าเพิ่มรายชื่อเพื่อนได้ครับ")
+    else:
+        st.warning("🔒 เฉพาะแอดมินหรือเหรัญญิกเท่านั้นที่ได้รับสิทธิ์ให้ปรับปรุงโครงสร้างรายชื่อนักศึกษา")
