@@ -7,7 +7,7 @@ import json
 st.set_page_config(page_title="ระบบออมเงิน FN A&B 68", page_icon="💰", layout="wide")
 
 # 🔗 ลิงก์ปลายทางฐานข้อมูลตัวใหม่ของคุณ
-WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwN68SHFe5WS6mX5u8RmiAXDt2-_24OuawdUV9FQWwbAyAok4kBzW9dgzeiEgHw9gpY/exec"
+WEB_APP_URL = "https://script.google.com/macros/s/AKfycbx8B-O26hAvjrllHuW3v_GT7S34J2s-JZ-WbPzRsBk-yhNhCRMgZlJzsVP58D0EnyJv/exec"
 GOOGLE_SHEET_LINK = "https://docs.google.com/spreadsheets/d/1BpxPfO-hTJNhd9wCBi1_GFEUulp2PQ-QkxCwSUYA3P8/edit?gid=0#gid=0"
 
 # ==========================================
