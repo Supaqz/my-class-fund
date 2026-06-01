@@ -51,19 +51,19 @@ def run_jsonp_sweetalert(action_type, payload_dict):
     st.components.v1.html(js_code, height=0)
 
 # ==========================================
-# 🎨 การจัดแสดงสไตล์ปุ่มและการลิงก์เว็บภายนอก
+# 🎨 การจัดแสดงสไตล์ปุ่มและการลิงก์เว็บภายนอก (แก้ไขเพิ่ม unique_key)
 # ==========================================
-def render_common_buttons(sheet_df, info_text):
-    """ปุ่มเรียกดูข้อมูล และปุ่มแสดงไฟล์ Google Sheet ประจำทุกหน้าต่าง"""
+def render_common_buttons(sheet_df, info_text, unique_key):
+    """ปุ่มเรียกดูข้อมูล และปุ่มแสดงไฟล์ Google Sheet ประจำทุกหน้าต่าง พร้อมแก้บั๊กปุ่มซ้ำ"""
     st.markdown("---")
     col_b1, col_b2 = st.columns(2)
     with col_b1:
-        if st.button("📊 เรียกดูข้อมูลจาก Google Sheet", use_container_width=True):
+        if st.button("📊 เรียกดูข้อมูลจาก Google Sheet", use_container_width=True, key=f"btn_view_{unique_key}"):
             st.write(f"📝 **ข้อมูลอัปเดตปัจจุบัน ({info_text}):**")
             if not sheet_df.empty: st.dataframe(sheet_df, use_container_width=True)
             else: st.info("ไม่พบรายการที่ถูกบันทึกในฐานข้อมูล")
     with col_b2:
-        st.link_button("🌐 แสดงข้อมูล Google Sheet", GOOGLE_SHEET_LINK, use_container_width=True)
+        st.link_button("🌐 แสดงข้อมูล Google Sheet", GOOGLE_SHEET_LINK, use_container_width=True, key=f"btn_link_{unique_key}")
 
 # หัวข้อระบบขนาดใหญ่
 st.title("💰 ระบบบันทึกการเงินและข้อมูลนักศึกษา สาขาการเงิน FN A&B 68")
@@ -104,7 +104,7 @@ with tab1:
                     run_jsonp_sweetalert("addDeposit", new_dep)
 
         df_dep_view = pd.DataFrame(st.session_state.deposits) if st.session_state.deposits else pd.DataFrame()
-        render_common_buttons(df_dep_view, "ประวัติการฝากเงิน")
+        render_common_buttons(df_dep_view, "ประวัติการฝากเงิน", "dep")
 
 # ==========================================
 # หน้าต่างที่ 2: ถอนเงิน
@@ -135,7 +135,7 @@ with tab2:
                     run_jsonp_sweetalert("addWithdrawal", new_wd)
 
         df_wd_view = pd.DataFrame(st.session_state.withdrawals) if st.session_state.withdrawals else pd.DataFrame()
-        render_common_buttons(df_wd_view, "ประวัติการถอนเงิน")
+        render_common_buttons(df_wd_view, "ประวัติการถอนเงิน", "wd")
 
 # ==========================================
 # หน้าต่างที่ 3: สรุปภาพรวม
@@ -221,4 +221,4 @@ with tab4:
         else: st.error("ไม่มีข้อมูลนักศึกษาสำหรับซิงค์คลาวด์")
             
     df_stu_view = pd.DataFrame(st.session_state.students) if st.session_state.students else pd.DataFrame()
-    render_common_buttons(df_stu_view, "ทำเนียบรายชื่อนักศึกษา")
+    render_common_buttons(df_stu_view, "ทำเนียบรายชื่อนักศึกษา", "stu")
